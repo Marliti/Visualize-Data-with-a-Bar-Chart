@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Graphique PIB - D3.js</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        /* Style général */
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f4f4f9;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        /* Styles des barres */
+        .bar {
+            fill: url(#gradient); /* Dégradé de couleur pour les barres */
+            transition: fill 0.3s ease, transform 0.3s ease; /* Transition pour la couleur et le zoom */
+        }
+
+        .bar:hover {
+            fill: #ff7f0e; /* Couleur orange au survol */
+            transform: scale(1.1); /* Agrandissement léger au survol */
+        }
+
+        /* Style des axes */
+        .tick line {
+            stroke: #ddd; /* Lignes d'axe plus fines et claires */
+        }
+
+        .tick text {
+            font-size: 12px;
+            font-family: "Arial", sans-serif;
+            fill: #444; /* Couleur des labels d'axe */
+        }
+
+        /* Style du tooltip */
+        #tooltip {
+            position: absolute;
+            visibility: hidden;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            pointer-events: none;
+            font-size: 14px;
+            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.2);
+            transition: opacity 0.3s ease; /* Transition fluide pour le tooltip */
+        }
+
+        /* Style du titre */
+        #title {
+            font-size: 30px;
+            font-weight: bold;
+            text-anchor: middle;
+            fill: #333;
+            margin-bottom: 30px;
+        }
+
+        /* Bordure autour du graphique */
+        svg {
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Légende */
+        .legend {
+            font-size: 12px;
+            fill: #666;
+            font-family: Arial, sans-serif;
+        }
+
+        /* Cercle de légende */
+        .legend-circle {
+            stroke-width: 2;
+        }
+
+        .legend-item {
+            display: inline-block;
+            margin-right: 15px;
+        }
+    </style>
+</head>
+<body>
+    <script>
+        // Dimensions du graphique
+        const width = 1000;
+        const height = 500;
+        const margin = { top: 50, right: 30, bottom: 70, left: 60 };
+
+        // Création du SVG
+        const svg = d3.select("body")
+            .append("svg")
+            .attr("width", width)
+            .attr("height", height);
+
+        // Ajout du titre avec l'ID "title"
+        svg.append("text")
+            .attr("id", "title")
+            .attr("x", width / 2)
+            .attr("y", margin.top / 2)
+            .text("Évolution du PIB des États-Unis");
+
+        // Création du tooltip (élément div)
+        const tooltip = d3.select("body").append("div")
+            .attr("id", "tooltip");
+
+        // Parseur de date pour transformer la date en objet Date
+        const parseDate = d3.timeParse("%Y-%m-%d");
+
+        // Charger les données depuis l'URL
+        d3.json("https://raw.githubusercontent.com/freeCodeCamp/ProjectReferenceData/master/GDP-data.json").then(data => {
+            const dataset = data.data; // Liste ordonnée des [date, PIB]
+
+            // Échelles
+            const xScale = d3.scaleBand()
+                .domain(dataset.map(d => parseDate(d[0]))) // Utilisation de la date transformée en objet Date
+                .range([margin.left, width - margin.right])
+                .padding(0.1);
+
+            const yScale = d3.scaleLinear()
+                .domain([0, d3.max(dataset, d => d[1])]) // Valeurs du PIB
+                .nice()
+                .range([height - margin.bottom, margin.top]);
+
+            // Formatage de la date complète (Jour Mois Année)
+            const formatDate = d3.timeFormat("%b %d, %Y");
+
+            // Axes
+            const xAxis = d3.axisBottom(xScale)
+                .tickFormat(d => formatDate(d)) // Affichage complet de la date (Jour Mois Année)
+                .tickSize(0); // Pas de ligne sur les ticks de l'axe X pour plus de lisibilité
+
+            const yAxis = d3.axisLeft(yScale)
+                .tickSize(0); // Pas de ligne sur les ticks de l'axe Y pour un aspect plus épuré
+
+            // Création d'un dégradé de couleur pour les barres
+            svg.append("defs")
+                .append("linearGradient")
+                .attr("id", "gradient")
+                .attr("x1", "0%")
+                .attr("y1", "100%")
+                .attr("x2", "0%")
+                .attr("y2", "0%")
+                .selectAll("stop")
+                .data([
+                    { offset: "0%", color: "#7fc7ff" },
+                    { offset: "100%", color: "#005b96" }
+                ])
+                .enter()
+                .append("stop")
+                .attr("offset", d => d.offset)
+                .attr("stop-color", d => d.color);
+
+            // Ajout des axes avec une meilleure présentation
+            svg.append("g")
+                .attr("id", "x-axis")
+                .attr("transform", `translate(0,${height - margin.bottom})`)
+                .call(xAxis)
+                .selectAll(".tick") // Ajouter la classe "tick"
+                .attr("class", "tick");
+
+            svg.append("g")
+                .attr("id", "y-axis")
+                .attr("transform", `translate(${margin.left},0)`)
+                .call(yAxis)
+                .selectAll(".tick") // Ajouter la classe "tick"
+                .attr("class", "tick");
+
+            // Ajout des barres avec transition et dégradé
+            svg.selectAll(".bar")
+                .data(dataset)
+                .enter()
+                .append("rect")
+                .attr("class", "bar")
+                .attr("x", d => xScale(parseDate(d[0]))) // Position horizontale de la barre selon la date
+                .attr("y", d => yScale(d[1])) // Position verticale de la barre selon le PIB
+                .attr("width", xScale.bandwidth()) // Largeur des barres
+                .attr("height", d => height - margin.bottom - yScale(d[1])) // Hauteur des barres selon PIB
+                .attr("data-date", d => d[0]) // Date à afficher sur hover
+                .attr("data-gdp", d => d[1])  // Valeur PIB à afficher sur hover
+                .on("mouseover", function(event, d) {
+                    tooltip.transition()
+                        .duration(200)
+                        .style("visibility", "visible")
+                        .style("opacity", 1); // Opacité du tooltip au survol
+
+                    tooltip.html(`${d[0]}<br>$${d[1]} milliards`)
+                        .attr("data-date", d[0])  // Ajouter le data-date dans le tooltip
+                        .attr("data-gdp", d[1]);
+
+                    tooltip.style("left", (event.pageX + 5) + "px")
+                        .style("top", (event.pageY - 28) + "px");
+                })
+                .on("mouseout", function() {
+                    tooltip.transition()
+                        .duration(200)
+                        .style("visibility", "hidden")
+                        .style("opacity", 0); // Réduire l'opacité du tooltip
+                })
+                .transition()  // Ajouter une transition pour l'animation des barres
+                .duration(1000)
+                .attr("height", d => height - margin.bottom - yScale(d[1])); // Animation de la hauteur des barres
+
+        }).catch(error => console.log(error));
+    </script>
+</body>
+</html>
